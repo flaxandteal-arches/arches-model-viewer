@@ -1,0 +1,12 @@
+{
+    "name": "arches_model_viewer",
+    "license": "AGPL-3.0-only",
+    "dependencies": {
+        "arches": "archesproject/arches#dev/8.1.x",
+        "online-3d-viewer": "^0.18.0"
+    },
+    "devDependencies": {
+        "arches-dev-dependencies": "archesproject/arches-dev-dependencies#dev/8.1.x"
+    },
+    "nodeModulesPaths": {}
+}

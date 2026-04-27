@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=77", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "arches-model-viewer"
+version = "0.1.0a0"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "AGPL-3.0-or-later"
+authors = []
+description = "3D model viewer for Arches file-list datatypes, with a digital-object report patch for arches-her."
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: Django",
+    "Framework :: Django :: 5.2",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "arches<8.2.0,>=8.1.0a0",
+    "arches-her",
+]
+
+[tool.setuptools]
+packages = ["arches_model_viewer"]
+
+[tool.setuptools.package-data]
+arches_model_viewer = [
+    "media/**/*",
+    "templates/**/*",
+    "src/**/*",
+    "locale/**/*",
+]

@@ -1,0 +1,4 @@
+recursive-include arches_model_viewer/media *
+recursive-include arches_model_viewer/templates *
+recursive-include arches_model_viewer/src *
+recursive-include arches_model_viewer/locale *
