@@ -134,16 +134,38 @@ onMounted(async () => {
         loadStatus.value = "Resolving file URL";
         const resolvedUrl = await resolveStorageUrl(props.url);
 
-        let dirUrl: string;
-        let fileName: string;
-        const lasMatch = resolvedUrl.match(/^(.+?)\.(las|laz)$/i);
-        if (lasMatch) {
-            dirUrl = `${lasMatch[1]}/`;
-            fileName = await detectEntryPoint(dirUrl);
-        } else {
-            const lastSlash = resolvedUrl.lastIndexOf("/");
-            dirUrl = resolvedUrl.slice(0, lastSlash + 1);
-            fileName = resolvedUrl.slice(lastSlash + 1) || await detectEntryPoint(dirUrl);
+        // The "is this an octree?" question is answered by what's actually
+        // in storage, not the URL's extension. Try each candidate
+        // directory and accept whichever holds metadata.json / cloud.js:
+        //   1. Sibling directory matching the uploaded file's basename
+        //      — covers our zip → unzipped-folder convention and any
+        //      manually-placed sibling octree.
+        //   2. The URL's own directory — covers direct uploads of
+        //      metadata.json / cloud.js into a folder.
+        const lastSlash = resolvedUrl.lastIndexOf("/");
+        const urlDir = resolvedUrl.slice(0, lastSlash + 1);
+        const fileSegment = resolvedUrl.slice(lastSlash + 1);
+        const stem = fileSegment.replace(/\.[^.]+$/, "");
+        const candidates = [
+            stem ? `${urlDir}${stem}/` : null,
+            urlDir,
+        ].filter((c): c is string => Boolean(c));
+
+        let dirUrl: string | null = null;
+        let fileName: string | null = null;
+        for (const candidate of candidates) {
+            try {
+                fileName = await detectEntryPoint(candidate);
+                dirUrl = candidate;
+                break;
+            } catch {
+                // No entry point at this candidate — try the next.
+            }
+        }
+        if (!dirUrl || !fileName) {
+            throw new Error(
+                `No Potree entry point found near ${resolvedUrl}. Tried: ${candidates.join(", ")}.`,
+            );
         }
 
         loadStatus.value = `Loading ${fileName}`;
