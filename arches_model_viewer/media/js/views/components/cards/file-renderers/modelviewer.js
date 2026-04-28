@@ -8,8 +8,6 @@ ko.bindingHandlers.modelViewer = {
         const model = ko.unwrap(valueAccessor());
         if (!model || !model.url || !model.name) return;
 
-        // url/name come from the card's in-memory file state (not an API),
-        // so initialProps is the documented escape hatch here.
         let vueApp = null;
         createVueApplication(ModelViewer, undefined, {
             url: model.url,

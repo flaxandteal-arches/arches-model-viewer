@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
-import { AmbientLight, Clock, Euler, OrthographicCamera, PerspectiveCamera, Plane, PlaneHelper, Scene, Vector3, WebGLRenderer } from 'three';
+import { Clock, Euler, OrthographicCamera, PerspectiveCamera, Plane, PlaneHelper, Scene, Vector3, WebGLRenderer } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
 import { ViewHelper } from 'three/examples/jsm/helpers/ViewHelper';
 import { GUI } from 'three/examples/jsm/libs/lil-gui.module.min.js';
@@ -483,7 +483,7 @@ onMounted(async () => {
 <style>
 .point-cloud-mount {
     width: 100%;
-    height: 400px;
+    height: 600px;
 }
 
 .point-cloud-mount--full {
