@@ -21,6 +21,7 @@ export interface GuiCallbacks {
     onPointSizeChange(size: number): void;
     onSizeTypeChange(type: ViewerParams["sizeType"]): void;
     onResetView(): void;
+    onToggleFullscreen(): void;
     clip: ClipController;
 }
 
@@ -29,7 +30,12 @@ export function createGui(host: HTMLElement, params: ViewerParams, cb: GuiCallba
     gui.domElement.classList.add("point-cloud-gui");
     host.appendChild(gui.domElement);
 
-    gui.add({ resetView: cb.onResetView }, "resetView").name("Reset View");
+    const actions = {
+        resetView: cb.onResetView,
+        toggleFullscreen: cb.onToggleFullscreen,
+    };
+    gui.add(actions, "resetView").name("Reset View");
+    gui.add(actions, "toggleFullscreen").name("Fullscreen");
 
     const cameraFolder = gui.addFolder("Camera");
     cameraFolder.add(params, "orthographic").name("Orthographic")

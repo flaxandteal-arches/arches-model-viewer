@@ -11,6 +11,7 @@ const props = defineProps<{
     name: string;
 }>();
 
+const wrapper = ref<HTMLDivElement | null>(null);
 const container = ref<HTMLDivElement | null>(null);
 const isLoading = ref(true);
 const loadStatus = ref("Initialising");
@@ -95,6 +96,14 @@ onMounted(async () => {
             for (const pco of pointClouds) pco.material.pointSizeType = SIZE_TYPE_MAP[type];
         },
         onResetView: () => scene.resetView(),
+        onToggleFullscreen: () => {
+            if (!wrapper.value) return;
+            if (document.fullscreenElement) {
+                document.exitFullscreen?.();
+            } else {
+                wrapper.value.requestFullscreen?.();
+            }
+        },
         clip,
     });
 
@@ -118,6 +127,7 @@ onMounted(async () => {
     });
 
     window.addEventListener("resize", scene.updateSize);
+    document.addEventListener("fullscreenchange", scene.updateSize);
     scene.updateSize();
 
     try {
@@ -218,7 +228,7 @@ onMounted(async () => {
 </script>
 
 <template>
-    <div class="point-cloud-wrapper">
+    <div ref="wrapper" class="point-cloud-wrapper">
         <div ref="container" class="point-cloud-canvas-host"></div>
         <div v-if="isLoading || loadError" class="point-cloud-overlay">
             <div v-if="loadError" class="point-cloud-error">
@@ -237,7 +247,7 @@ onMounted(async () => {
 <style>
 .point-cloud-mount {
     width: 100%;
-    height: 600px;
+    height: 650px;
 }
 
 .point-cloud-mount--full {
@@ -278,10 +288,13 @@ onMounted(async () => {
     --title-height: 32px;
     --widget-height: 22px;
     width: 280px;
+    /* Cap to viewer height so the panel never overflows the wrapper; the
+       internal list scrolls when the folders are taller than this. */
+    max-height: calc(100% - 24px);
     border-radius: 8px;
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
     backdrop-filter: blur(8px);
-    overflow: hidden;
+    overflow-y: auto;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
