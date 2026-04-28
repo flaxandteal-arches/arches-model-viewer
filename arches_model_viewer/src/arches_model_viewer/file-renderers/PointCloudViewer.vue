@@ -1,9 +1,7 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from "vue";
-import * as THREE from "three";
-import { AmbientLight, Clock, Euler, OrthographicCamera, PerspectiveCamera, Plane, PlaneHelper, Raycaster, Scene, Vector2, Vector3, WebGLRenderer } from 'three';
+import { onMounted, ref } from "vue";
+import { AmbientLight, Clock, Euler, OrthographicCamera, PerspectiveCamera, Plane, PlaneHelper, Scene, Vector3, WebGLRenderer } from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-import { TransformControls } from 'three/examples/jsm/controls/TransformControls';
 import { ViewHelper } from 'three/examples/jsm/helpers/ViewHelper';
 import { GUI } from 'three/examples/jsm/libs/lil-gui.module.min.js';
 import { ClipMode, PointCloudOctree, PointSizeType, Potree, PotreeRenderer, createClipBox } from 'potree-core';
@@ -13,28 +11,12 @@ const props = defineProps<{
     name: string;
 }>();
 
-const wrapper = ref<HTMLDivElement | null>(null);
 const container = ref<HTMLDivElement | null>(null);
 const isLoading = ref(true);
-const isFullscreen = ref(false);
-const showSettings = ref(false);
 const loadStatus = ref("Initialising");
 const loadError = ref<string | null>(null);
-const pointBudget = ref(2_000_000);
-const pointSize = ref(3);
-const colorMode = ref("ELEVATION");
-const pointSizeType = ref("ADAPTIVE");
-
-let pointcloud: any = null;
 
 const potree = new Potree();
-
-// Template handlers — defined at top level so the template can bind to them.
-// They are reassigned from inside onMounted once the scene/renderer exist.
-let resetView: () => void = () => {};
-let bumpBudget: (delta: number) => void = () => {};
-let toggleFullscreen: () => void = () => {};
-let onPointBudgetChange: () => void = () => {};
 
 // Resolve an Arches `/files/<uuid>` URL to its underlying storage URL.
 // The arches file view typically issues a 302 redirect to the actual blob
@@ -164,10 +146,6 @@ onMounted(async () => {
 		// Points
 		pointSize: 1.0,
 		sizeType: 'Adaptive',
-		// Transform
-		transformMode: 'translate',
-		// Pick
-		pickMethod: 'Potree',
 	};
 
 	// EDL
@@ -224,59 +202,11 @@ onMounted(async () => {
 
 	let controls = new OrbitControls(camera, canvas);
 
-	let transformControls = new TransformControls(camera, canvas);
-	transformControls.addEventListener('dragging-changed', (event) => {
-		controls.enabled = !event.value;
-	});
-	let transformHelper: THREE.Object3D = (transformControls as any).getHelper ? (transformControls as any).getHelper() : (transformControls as unknown as THREE.Object3D);
-	scene.add(transformHelper);
+	// Remembered framing so the "Reset View" button can restore it after the
+	// cloud has been positioned and the camera has been moved.
+	const initialCameraPosition = new Vector3();
+	const initialTarget = new Vector3();
 
-	const raycaster = new Raycaster();
-	// @ts-ignore
-	raycaster.params.Points.threshold = 1e-2;
-	const normalized = new Vector2();
-
-	canvas.onmousemove = function (event) {
-		const rect = canvas.getBoundingClientRect();
-		normalized.set(
-			((event.clientX - rect.left) / rect.width) * 2 - 1,
-			-((event.clientY - rect.top) / rect.height) * 2 + 1,
-		);
-		raycaster.setFromCamera(normalized, camera);
-	};
-
-	let selectedPco: PointCloudOctree | null = null;
-
-	canvas.ondblclick = function () {
-		const ray = raycaster.ray;
-		let pickedPco: PointCloudOctree | null = null;
-
-		if (params.pickMethod === 'Potree') {
-			const pick = Potree.pick(pointClouds, renderer, camera, ray);
-			pickedPco = pick?.pointCloud ?? null;
-		} else {
-			const intersects = raycaster.intersectObjects(pointClouds, true);
-			if (intersects.length > 0) {
-				let node = intersects[0].object;
-				while (node != null) {
-					if (pointClouds.includes(node as PointCloudOctree)) {
-						pickedPco = node as PointCloudOctree;
-						break;
-					}
-					node = node.parent as typeof node;
-				}
-			}
-		}
-
-		if (pickedPco) {
-			selectedPco = pickedPco;
-			transformControls.attach(selectedPco);
-		} else {
-			selectedPco = null;
-			transformControls.detach();
-		}
-
-	};
     function loadPointCloud(fileName: string, baseUrl: string, position?: Vector3, rotation?: Euler, scale?: Vector3, applyClipPlanes = false) {
             return potree.loadPointCloud(fileName, baseUrl).then(function (pco: PointCloudOctree) {
                 const sizeTypeMap: Record<string, PointSizeType> = {
@@ -326,6 +256,8 @@ onMounted(async () => {
                 orthographicCamera.position.copy(center).addScaledVector(dir, distance);
                 controls.target.copy(center);
                 controls.update();
+                initialCameraPosition.copy(perspectiveCamera.position);
+                initialTarget.copy(center);
 
                 if (applyClipPlanes) {
                     planeCenter.copy(center);
@@ -360,24 +292,25 @@ onMounted(async () => {
             controls.dispose();
             controls = new OrbitControls(camera, canvas);
 
-            const wasAttached = transformControls.object;
-            scene.remove(transformHelper);
-            transformControls.dispose();
-            transformControls = new TransformControls(camera, canvas);
-            transformControls.addEventListener('dragging-changed', (event) => {
-                controls.enabled = !event.value;
-            });
-            transformHelper = (transformControls as any).getHelper ? (transformControls as any).getHelper() : (transformControls as unknown as THREE.Object3D);
-            scene.add(transformHelper);
-            if (wasAttached) transformControls.attach(wasAttached);
-
             viewHelper = new ViewHelper(camera, canvas);
 
             updateSize();
         }
 
+        function resetView() {
+            perspectiveCamera.position.copy(initialCameraPosition);
+            orthographicCamera.position.copy(initialCameraPosition);
+            controls.target.copy(initialTarget);
+            controls.update();
+        }
+
         // ---- gui ----
-        const gui = new GUI({ title: 'Potree Demo' });
+        const gui = new GUI({ title: 'Viewer', autoPlace: false });
+        gui.domElement.classList.add('point-cloud-gui');
+        container.value!.appendChild(gui.domElement);
+
+        const guiActions = { resetView };
+        gui.add(guiActions, 'resetView').name('Reset View');
 
         // Camera folder
         const cameraFolder = gui.addFolder('Camera');
@@ -422,14 +355,6 @@ onMounted(async () => {
             };
             for (const pco of pointClouds) pco.material.pointSizeType = map[v];
         });
-
-        // Interaction folder
-        const interactionFolder = gui.addFolder('Interaction');
-        interactionFolder.add(params, 'transformMode', ['translate', 'rotate', 'scale']).name('Transform').onChange((v: string) => {
-            transformControls.setMode(v as 'translate' | 'rotate' | 'scale');
-        });
-        interactionFolder.add(params, 'pickMethod', ['Potree', 'Raycaster']).name('Pick Method');
-        interactionFolder.close();
 
         // ---- Render loop ----
         renderer.autoClear = false;
@@ -528,7 +453,7 @@ onMounted(async () => {
                 throw new Error(`Response from ${fullUrl} is not JSON.${hint} First 300 chars: ${snippet}`);
             }
 
-            pointcloud = await loadPointCloud(fileName, dirUrl, undefined, undefined, undefined, true);
+            await loadPointCloud(fileName, dirUrl, undefined, undefined, undefined, true);
             isLoading.value = false;
         } catch (err) {
             console.error("Point cloud load failed", err);
@@ -539,7 +464,7 @@ onMounted(async () => {
 </script>
 
 <template>
-    <div ref="wrapper" class="point-cloud-wrapper">
+    <div class="point-cloud-wrapper">
         <div ref="container" class="point-cloud-canvas-host"></div>
         <div v-if="isLoading || loadError" class="point-cloud-overlay">
             <div v-if="loadError" class="point-cloud-error">
@@ -552,85 +477,6 @@ onMounted(async () => {
                 <div class="point-cloud-status">{{ loadStatus }}</div>
             </div>
         </div>
-        <div class="point-cloud-controls">
-            <button type="button" title="Reset view" @click="resetView">
-                <i class="fa fa-undo" aria-hidden="true"></i>
-            </button>
-            <button
-                type="button"
-                title="Decrease point budget"
-                @click="bumpBudget(-500_000)"
-            >
-                <i class="fa fa-minus" aria-hidden="true"></i>
-            </button>
-            <button
-                type="button"
-                title="Increase point budget"
-                @click="bumpBudget(500_000)"
-            >
-                <i class="fa fa-plus" aria-hidden="true"></i>
-            </button>
-            <button
-                type="button"
-                title="Settings"
-                :class="{ active: showSettings }"
-                @click="showSettings = !showSettings"
-            >
-                <i class="fa fa-cog" aria-hidden="true"></i>
-            </button>
-            <button
-                type="button"
-                :title="isFullscreen ? 'Exit fullscreen' : 'Fullscreen'"
-                @click="toggleFullscreen"
-            >
-                <i
-                    :class="isFullscreen ? 'fa fa-compress' : 'fa fa-expand'"
-                    aria-hidden="true"
-                ></i>
-            </button>
-        </div>
-
-        <div v-if="showSettings" class="point-cloud-settings">
-            <label>
-                <span>Colour by</span>
-                <select v-model="colorMode">
-                    <option value="ELEVATION">Elevation</option>
-                    <option value="RGBA">RGB</option>
-                    <option value="INTENSITY">Intensity</option>
-                    <option value="CLASSIFICATION">Classification</option>
-                    <option value="RETURN_NUMBER">Return number</option>
-                    <option value="SOURCE_ID">Source / flight line</option>
-                    <option value="LOD">LOD (debug)</option>
-                </select>
-            </label>
-            <label>
-                <span>Point size</span>
-                <input
-                    type="range" min="0.1" max="10" step="0.1"
-                    v-model.number="pointSize"
-                />
-                <span class="point-cloud-settings-value">{{ pointSize.toFixed(1) }}</span>
-            </label>
-            <label>
-                <span>Sizing</span>
-                <select v-model="pointSizeType">
-                    <option value="ADAPTIVE">Adaptive</option>
-                    <option value="ATTENUATED">Attenuated (perspective)</option>
-                    <option value="FIXED">Fixed</option>
-                </select>
-            </label>
-            <label>
-                <span>Point budget</span>
-                <input
-                    type="range" min="250000" max="10000000" step="250000"
-                    v-model.number="pointBudget"
-                    @input="onPointBudgetChange"
-                />
-                <span class="point-cloud-settings-value">
-                    {{ (pointBudget / 1_000_000).toFixed(2) }}M
-                </span>
-            </label>
-        </div>
     </div>
 </template>
 
@@ -642,6 +488,84 @@ onMounted(async () => {
 
 .point-cloud-mount--full {
     height: calc(100vh - 200px);
+}
+
+/* lil-gui customisation. Unscoped so the overrides apply to the GUI's
+   internal class names; the .point-cloud-gui prefix keeps it isolated to
+   this component's GUI instance. */
+.point-cloud-gui.lil-gui {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 10;
+    --background-color: rgba(20, 22, 28, 0.92);
+    --text-color: #e5e7eb;
+    --title-background-color: rgba(96, 165, 250, 0.18);
+    --title-text-color: #f5f7fa;
+    --widget-color: rgba(255, 255, 255, 0.08);
+    --hover-color: rgba(255, 255, 255, 0.14);
+    --focus-color: rgba(96, 165, 250, 0.35);
+    --number-color: #93c5fd;
+    --string-color: #fbbf24;
+    --font-size: 12px;
+    --input-font-size: 12px;
+    --folder-indent: 8px;
+    --padding: 6px;
+    --spacing: 5px;
+    --slider-knob-width: 3px;
+    --slider-input-width: 28%;
+    --color-input-width: 28%;
+    --slider-input-min-width: 40px;
+    --color-input-min-width: 40px;
+    --folder-closed-arrow: '▸';
+    --folder-open-arrow: '▾';
+    --widget-border-radius: 4px;
+    --scrollbar-width: 6px;
+    --title-height: 32px;
+    --widget-height: 22px;
+    width: 280px;
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+    backdrop-filter: blur(8px);
+    overflow: hidden;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.point-cloud-gui.lil-gui .title {
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    /* lil-gui sizes titles via --title-height; use horizontal padding only
+       and let line-height fill the row so text isn't clipped. */
+    padding: 0 10px;
+    line-height: var(--title-height);
+    --title-height: inherit;
+}
+
+.point-cloud-gui.lil-gui .controller {
+    padding: 2px 8px;
+    align-items: center;
+}
+
+.point-cloud-gui.lil-gui .controller .name {
+    font-size: 11px;
+    opacity: 0.85;
+}
+
+.point-cloud-gui.lil-gui button {
+    cursor: pointer;
+}
+
+/* Vertically centre checkboxes — by default they sit at the top of the
+   widget cell, out of line with the controller's label text. */
+.point-cloud-gui.lil-gui .controller.boolean .widget {
+    display: flex;
+    align-items: center;
+    height: 100%;
+}
+
+.point-cloud-gui.lil-gui .controller.boolean input[type="checkbox"] {
+    margin: 0;
+    cursor: pointer;
 }
 </style>
 
@@ -660,98 +584,6 @@ onMounted(async () => {
     height: 100%;
 }
 
-.point-cloud-controls {
-    --btn-size: 36px;
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    display: flex;
-    gap: calc(var(--btn-size) * 0.15);
-    padding: calc(var(--btn-size) * 0.15);
-    background: rgba(20, 22, 28, 0.75);
-    backdrop-filter: blur(8px);
-    border-radius: calc(var(--btn-size) * 0.22);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-    z-index: 10;
-}
-
-.point-cloud-controls button {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: var(--btn-size);
-    height: var(--btn-size);
-    font-size: calc(var(--btn-size) * 0.5);
-    padding: 0;
-    border: none;
-    border-radius: calc(var(--btn-size) * 0.15);
-    background: transparent;
-    color: #e5e7eb;
-    cursor: pointer;
-    transition: background 0.15s ease;
-}
-
-.point-cloud-controls button:hover {
-    background: rgba(255, 255, 255, 0.12);
-}
-
-.point-cloud-controls button.active {
-    background: rgba(96, 165, 250, 0.25);
-    color: #93c5fd;
-}
-
-.point-cloud-settings {
-    position: absolute;
-    top: 60px;
-    right: 10px;
-    z-index: 11;
-    width: 260px;
-    padding: 14px;
-    background: rgba(20, 22, 28, 0.92);
-    backdrop-filter: blur(8px);
-    border-radius: 8px;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
-    color: #e5e7eb;
-    font-size: 13px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.point-cloud-settings label {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 4px;
-}
-
-.point-cloud-settings label > span:first-child {
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    opacity: 0.7;
-}
-
-.point-cloud-settings select,
-.point-cloud-settings input[type="range"] {
-    width: 100%;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    border-radius: 4px;
-    color: #e5e7eb;
-    padding: 4px 6px;
-    font-size: 12px;
-}
-
-.point-cloud-settings input[type="range"] {
-    padding: 0;
-}
-
-.point-cloud-settings-value {
-    font-variant-numeric: tabular-nums;
-    font-size: 11px;
-    opacity: 0.7;
-    text-align: right;
-}
 
 .point-cloud-overlay {
     position: absolute;
