@@ -7,6 +7,11 @@ class ArchesModelViewerConfig(AppConfig):
 
     def ready(self):
         _patch_renderer_ext_csv()
+        _patch_filelist_path_join()
+        # Importing for side effects only — registers @receiver handlers
+        # against arches model signals. Standard Django pattern.
+        from . import signals  # noqa: F401
+
 
 def _patch_renderer_ext_csv():
     """

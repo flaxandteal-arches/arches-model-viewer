@@ -94,11 +94,17 @@
                             </div>
                         </div>
                         <!-- /ko -->
-
                         <!-- ko foreach: modelFiles -->
                         <div class="aher-report-subsection">
                             <div class="model-viewer-mount"
                                  data-bind="modelViewer: { url: link, name: name }">
+                            </div>
+                        </div>
+                        <!-- /ko -->
+                        <!-- ko foreach: pointCloudFiles -->
+                        <div class="aher-report-subsection">
+                            <div class="point-cloud-mount"
+                                 data-bind="pointCloudViewer: { url: link, name: name }">
                             </div>
                         </div>
                         <!-- /ko -->

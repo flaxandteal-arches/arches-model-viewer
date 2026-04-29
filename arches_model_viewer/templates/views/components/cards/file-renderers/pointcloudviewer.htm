@@ -1,0 +1,15 @@
+{% load i18n %}
+
+<!--ko if: params.context === 'render' -->
+<div>
+    <!--ko if: params.selected() -->
+    <div class="point-cloud-mount point-cloud-mount--full"
+         data-bind="pointCloudViewer: model">
+    </div>
+    <!--/ko-->
+</div>
+<!--/ko-->
+<!--ko if: params.context === 'tab' -->
+<!--/ko-->
+<!--ko if: params.context === 'tab-contents' -->
+<!--/ko-->

@@ -1,15 +1,15 @@
 import ko from 'knockout';
 import createVueApplication from 'arches/arches/app/media/js/utils/create-vue-application';
-import ModelViewer from '@/arches_model_viewer/file-renderers/ModelViewer.vue';
-import modelViewerTemplate from 'templates/views/components/cards/file-renderers/modelviewer.htm';
+import PointCloudViewer from '@/arches_model_viewer/file-renderers/PointCloudViewer.vue';
+import pointCloudViewerTemplate from 'templates/views/components/cards/file-renderers/pointcloudviewer.htm';
 
-ko.bindingHandlers.modelViewer = {
+ko.bindingHandlers.pointCloudViewer = {
     init: function (element, valueAccessor) {
         const model = ko.unwrap(valueAccessor());
         if (!model || !model.url || !model.name) return;
 
         let vueApp = null;
-        createVueApplication(ModelViewer, undefined, {
+        createVueApplication(PointCloudViewer, undefined, {
             url: model.url,
             name: model.name,
         })
@@ -25,7 +25,7 @@ ko.bindingHandlers.modelViewer = {
     },
 };
 
-export default ko.components.register('modelviewer', {
+export default ko.components.register('pointcloudviewer', {
     viewModel: function (params) {
         this.params = params;
         const displayContent = ko.unwrap(params.displayContent);
@@ -33,5 +33,5 @@ export default ko.components.register('modelviewer', {
             ? { url: displayContent.url, name: displayContent.name }
             : null;
     },
-    template: modelViewerTemplate,
+    template: pointCloudViewerTemplate,
 });
