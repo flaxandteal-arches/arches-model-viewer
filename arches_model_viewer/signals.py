@@ -195,12 +195,7 @@ def extract_point_cloud_octree(sender, instance, created, **kwargs):
         if not name.lower().endswith(".zip"):
             continue
 
-        # The file_dict's `url` is a public URL like /files/<key>; the
-        # storage key itself lives in the related File model. The
-        # transform_value_for_tile patch in apps.py already places the
-        # blob at `<UPLOADED_FILES_DIR>/<name>`, which is the storage
-        # key we read.
-        storage_path = os.path.join(
+        storage_path = file_dict.get("path") or os.path.join(
             settings.UPLOADED_FILES_DIR, str(name)
         )
 
